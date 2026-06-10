@@ -26,6 +26,13 @@ export default function HomeScreen({ navigation }) {
         setChats(savedChats);  // update state with loaded chats
     };
 
+    // delete a chat when user long presses
+    const handleDeleteChat = async (chatId) => {
+        await deleteChat(chatId);
+        // reload chats after deleting
+        loadChatsFromStroage();
+    };
+
     return(
         
         <View style={styles.container}>
@@ -48,7 +55,9 @@ export default function HomeScreen({ navigation }) {
             <TouchableOpacity style={styles.chatItem} onPress={() => navigation.navigate("Chat", {
                 chatId: item.id,
                 messages: item.messages
-            })}>
+            })}
+            onLongPress={() => handleDeleteChat(item.id)}
+            >
                 <Text style={styles.chatTitle}>
                     {item.title ? String(item.title) : "New Chat"}
                 </Text>
