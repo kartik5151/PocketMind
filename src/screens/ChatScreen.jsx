@@ -1,7 +1,9 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, KeyboardAvoidingView, Platform } from "react-native";
-import { useState, useEffect } from "react";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
+import { useState, useEffect, useRef } from "react";
 import { sendMessageToGemini } from "../api/gemini";
 import { saveChats, loadChats } from "../storage/chatStorage";
+import { saveChatsToCloud, loadChatsFromCloud } from "../storage/firestoreStorage";
+
 
 export default function ChatScreen({route}) {
 
@@ -20,6 +22,8 @@ export default function ChatScreen({route}) {
 
     // unique id for this chat session
     const [chatId] = useState(existingChatId || Date.now().toString());
+
+    const flatListRef = useRef(null);
 
     // load old messages if opening existing chat
     useEffect(() => {
@@ -47,6 +51,7 @@ export default function ChatScreen({route}) {
 
         // clear input
         setInputText("");
+        Keyboard.dismiss();
 
         // show loading - AI is thinking
         setIsLoading(true);
@@ -68,9 +73,9 @@ export default function ChatScreen({route}) {
         // hide loading
         setIsLoading(false);
 
-        // save chat to AsyncStorage
+        // save chat to AsyncStorage (local)
         const existingChats = await loadChats();
-
+        
         // check if this chat already exists
         const chatIndex = existingChats.findIndex((c) => c.id === chatId);
 
@@ -81,7 +86,7 @@ export default function ChatScreen({route}) {
             date: new Date().toLocaleDateString(),
             messages: finalMessages,
         };
-
+        
         if (chatIndex >= 0) {
             // update existing chat
             existingChats[chatIndex] = chatToSave;
@@ -89,9 +94,12 @@ export default function ChatScreen({route}) {
             // add new chat
             existingChats.unshift(chatToSave);
         }
-
-        // save to storage
+        
+        // save to AsyncStorage (local backup)
         await saveChats(existingChats);
+        
+        // ALSO save to Firestore (cloud - per user)
+        await saveChatsToCloud(existingChats);
     };
 
     return(
@@ -100,13 +108,19 @@ export default function ChatScreen({route}) {
         <KeyboardAvoidingView style={styles.container}
          
 
-            behavior={Platform.OS === "ios" ? "padding" : "height"}>
+            behavior={Platform.OS === "ios" ? "padding" : "padding"}
+            keyboardVerticalOffset={80}
+            >
 
             {/* FlatList - scrollable list of chat messages */}
             <FlatList
                 data={messages}
                 keyExtractor={(item) => item.id}
                 style={styles.messagesList}
+                ref={flatListRef}
+                keyboardShouldPersistTaps="handled"
+                onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true})}
+                onLayout={() => flatListRef.current?.scrollToEnd({animated: true})}
                 renderItem={({ item }) => (
                     
 

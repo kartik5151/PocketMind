@@ -7,9 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "extra": {
-      "geminiApiKey": "AQ.Ab8RN6KrlfbX6LFicYwF3fmjO43RdPdUTeOAwdvaYOjVkLSqPw"
-    },
+  
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -19,6 +17,8 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.kartik.pocketmind",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -27,6 +27,16 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+  "@react-native-firebase/app",
+  "@react-native-firebase/auth",
+  [
+    "@react-native-google-signin/google-signin",
+    {
+      "iosUrlScheme": "com.googleusercontent.apps.782705124975-815g8lpsuaso7eokf9eag8ocg3p1q544"
     }
+  ]
+]
   }
 }

@@ -1,116 +1,229 @@
-import { View, Text, TouchableOpacity, StyleSheet, FlatList } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, Image } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useState, useCallback } from "react";
+import { loadChatsFromCloud, deleteChatFromCloud } from "../storage/firestoreStorage";
 
-
-// our stroage function
+// our storage functions
 import { loadChats, deleteChat } from "../storage/chatStorage";
+
+// sign out function
+import { signOut } from "../services/auth";
+
+// firebase auth to get current user
+import auth from '@react-native-firebase/auth';
 
 export default function HomeScreen({ navigation }) {
 
-    // chats - array that stores all saved chats
-    // setChats - function to update the chats array
+    // chats array
     const [chats, setChats] = useState([]);
 
-    // useEffect - runs automatically when screen first opens
-    // [] at end means run only once when screen loads
-    useFocusEffect( 
+    // get current logged in user from Firebase
+    const user = auth().currentUser;
+
+    // load chats when screen opens
+    useFocusEffect(
         useCallback(() => {
-        loadChatsFromStroage();
-    }, [])
+            loadChatsFromStorage();
+        }, [])
     );
 
-    // function to load chat from AsyncStroage
-    const loadChatsFromStroage = async () => {
-        const savedChats = await loadChats();   // await - wait for storage to give us the chats
-        setChats(savedChats);  // update state with loaded chats
+    // load chats from AsyncStorage / cloud
+    const loadChatsFromStorage = async () => {
+    const savedChats = await loadChatsFromCloud();
+    setChats(savedChats);
+};
+
+    // handle sign out
+    const handleSignOut = async () => {
+        Alert.alert(
+            "Sign Out",
+            "Are you sure you want to sign out?",
+            [
+                {
+                    text: "Sign Out",
+                    style: "destructive",
+                    onPress: async () => {
+                        await signOut();
+                        // App.js onAuthStateChanged will auto redirect to Login
+                    }
+                },
+                {
+                    text: "Cancel",
+                    style: "cancel"
+                }
+            ]
+        );
     };
 
-    // delete a chat when user long presses
-    const handleDeleteChat = async (chatId) => {
-        await deleteChat(chatId);
-        // reload chats after deleting
-        loadChatsFromStroage();
+    // long press delete
+    const handleLongPress = (chatId, chatTitle) => {
+        Alert.alert(
+            "Chat Options",
+            `What do you want to do with "${chatTitle || "this chat"}"?`,
+            [
+                {
+                    text: "Delete Chat",
+                    style: "destructive",
+                    onPress: async () => {
+                        await deleteChatFromCloud(chatId);
+                        loadChatsFromStorage();
+                    }
+                },
+                {
+                    text: "Cancel",
+                    style: "cancel"
+                }
+            ]
+        );
     };
 
-    return(
-        
+    return (
         <View style={styles.container}>
-            {/* Main Container - holds everything */}
-            
-            {/* header section - app title at top */}
+
+            {/* header - app title + user info */}
             <View style={styles.header}>
-                <Text style={styles.title}>POCKETMIND</Text>
+
+                {/* top row - title and sign out button */}
+                <View style={styles.headerTop}>
+                    <Text style={styles.title}>POCKETMIND</Text>
+                    <TouchableOpacity
+                        style={styles.signOutButton}
+                        onPress={handleSignOut}
+                    >
+                        <Text style={styles.signOutText}>Sign Out</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* user info row - photo + name + email */}
+                {user && (
+                    <View style={styles.userInfo}>
+                        {/* user profile photo */}
+                        {user.photoURL && (
+                            <Image
+                                source={{ uri: user.photoURL }}
+                                style={styles.userPhoto}
+                            />
+                        )}
+                        <View>
+                            <Text style={styles.userName}>
+                                {user.displayName || "User"}
+                            </Text>
+                            <Text style={styles.userEmail}>
+                                {user.email}
+                            </Text>
+                        </View>
+                    </View>
+                )}
             </View>
-            
-            {/* FlatList - scrollable list of all past chats */}
-            {/* data={chats} - the array of chats to show */}
-            {/* keyExtractor - gives each item a unique key */}
+
+            {/* chat list */}
             <FlatList
-            data={chats}
-            keyExtractor={(item) => item.id}
-
-             
-            renderItem={({ item }) => (
-            <TouchableOpacity style={styles.chatItem} onPress={() => navigation.navigate("Chat", {
-                chatId: item.id,
-                messages: item.messages
-            })}
-            onLongPress={() => handleDeleteChat(item.id)}
-            >
-                <Text style={styles.chatTitle}>
-                    {item.title ? String(item.title) : "New Chat"}
-                </Text>
-                <Text style={styles.chatDate}>
-                    {item.date ? String(item.date) : ""}
-                    </Text>
-            </TouchableOpacity>
-            )}
-
-            
-            ListEmptyComponent={
-                <Text style={styles.emptyText}>No chats yet</Text>
-            }
+                data={chats}
+                keyExtractor={(item) => item.id}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                windowSize={10}
+                renderItem={({ item }) => (
+                    <TouchableOpacity
+                        style={styles.chatItem}
+                        onPress={() => navigation.navigate("Chat", {
+                            chatId: item.id,
+                            messages: item.messages
+                        })}
+                        onLongPress={() => handleLongPress(item.id, item.title)}
+                    >
+                        <Text style={styles.chatTitle}>
+                            {item.title ? String(item.title) : "New Chat"}
+                        </Text>
+                        <Text style={styles.chatDate}>
+                            {item.date ? String(item.date) : ""}
+                        </Text>
+                    </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                    <Text style={styles.emptyText}>No chats yet. Start a new chat!</Text>
+                }
             />
 
-
-            {/* button - fixed at bottom to start new chat.. */}
-            <TouchableOpacity 
-            style={styles.newChatButton}
-            onPress={() => navigation.navigate("Chat")}
+            {/* new chat button */}
+            <TouchableOpacity
+                style={styles.newChatButton}
+                onPress={() => navigation.navigate("Chat")}
             >
-                <Text style={styles.newChatText}>New Chat</Text>
+                <Text style={styles.newChatText}>+ New Chat</Text>
             </TouchableOpacity>
 
         </View>
-    )
+    );
 }
 
-
-// all styles grouped here at bottom
 const styles = StyleSheet.create({
 
-    // full screen dark background
     container: {
         flex: 1,
         backgroundColor: "#0f0f0f",
         padding: 20,
     },
-    
-    // pushes title down from status bar
+
     header: {
         marginTop: 50,
-        marginBottom: 30,
+        marginBottom: 20,
     },
 
-    // app name styling
+    headerTop: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 15,
+    },
+
     title: {
         fontSize: 28,
         fontWeight: "bold",
         color: "#ffffff",
     },
 
-    // muted text when no chats
+    signOutButton: {
+        backgroundColor: "#1a1a1a",
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        borderRadius: 8,
+    },
+
+    signOutText: {
+        color: "#ff4444",
+        fontSize: 14,
+        fontWeight: "bold",
+    },
+
+    userInfo: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#1a1a1a",
+        padding: 12,
+        borderRadius: 12,
+        marginBottom: 10,
+    },
+
+    userPhoto: {
+        width: 45,
+        height: 45,
+        borderRadius: 22,
+        marginRight: 12,
+    },
+
+    userName: {
+        color: "#ffffff",
+        fontSize: 16,
+        fontWeight: "bold",
+    },
+
+    userEmail: {
+        color: "#888888",
+        fontSize: 13,
+        marginTop: 2,
+    },
+
     emptyText: {
         color: "#888888",
         fontSize: 16,
@@ -118,9 +231,8 @@ const styles = StyleSheet.create({
         marginTop: 40,
     },
 
-    // floating button fixed at bottom
     newChatButton: {
-        backgroundColor: "#1a1a2e",
+        backgroundColor: "#4f46e5",
         padding: 15,
         borderRadius: 12,
         alignItems: "center",
@@ -130,7 +242,6 @@ const styles = StyleSheet.create({
         right: 20,
     },
 
-    // button text
     newChatText: {
         color: "#ffffff",
         fontSize: 16,
@@ -138,24 +249,21 @@ const styles = StyleSheet.create({
     },
 
     chatItem: {
-    backgroundColor: "#1a1a1a",
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
-},
+        backgroundColor: "#1a1a1a",
+        padding: 15,
+        borderRadius: 12,
+        marginBottom: 10,
+    },
 
-// chat title text
-chatTitle: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "bold",
-},
+    chatTitle: {
+        color: "#ffffff",
+        fontSize: 16,
+        fontWeight: "bold",
+    },
 
-// chat date text
-chatDate: {
-    color: "#888888",
-    fontSize: 12,
-    marginTop: 4,
-},
-
-}) 
+    chatDate: {
+        color: "#888888",
+        fontSize: 12,
+        marginTop: 4,
+    },
+});
